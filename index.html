@@ -23,7 +23,7 @@
     +reset: if remaining changes are removed from solution, don't forget to get them back (probably, just re-init the game - b-but we'll need to remove existing objects first)
     +hint: if there are no tries in the beginning of the game, move letters in text/alphabet around
     +countdown: also update total_score
-    store solved levels: store strings to compare later with current tasks to skip the solved ones
+    +store solved levels: store strings to compare later with current tasks to skip the solved ones
     */
     (function(){
     
@@ -72,14 +72,18 @@
       
       function init() {
         total_score = localStorage.getItem('score');
-        total_score = total_score === null ? 0 parseInt(total_score):
+        total_score = total_score === null ? 0 : parseInt(total_score);
         localStorage.setItem('score', total_score.toString());
         solved = localStorage.getItem('solved');
         if (solved === null)
           solved = [];
         else
           solved = solved.split('\\');
+        console.log(solved);
         localStorage.setItem('solved', solved.join('\\'));
+        cur_task = next_task(-1);
+        if (cur_task>=0) 
+          task = tasks[cur_task];
         
         // output a text with the score
         score_text = new createjs.Text("Счёт: " + total_score.toString(), "60px PT Serif", "#ff7700");
@@ -423,7 +427,6 @@
       
       function checkChange(i, ch, removing, inserting) {
         attempts++;
-        updateHints();
         console.log(i, ch, removing, inserting, solution.length);
         for (var j = 0; j < solution.length; j++) {
           if (solution[j][2] == i && // first check position of a rule, then if it'ss applied correctly
@@ -448,12 +451,16 @@
               console.log('Result:', stars);
               alert("Поздравляю!\n" + Array(stars + 1).join("☺️"));
               cur_task = next_task(cur_task);
+              if (cur_task>=0) 
+                task = tasks[cur_task];
               // save the total score
               reset();
             }
+            updateHints();
             return true;
           }
         }
+        updateHints();
         return false;
       }
       
