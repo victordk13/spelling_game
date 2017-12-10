@@ -20,6 +20,7 @@
     <script>
     /* TODO:
     stars: 3 for perfect solution, 2 for less than two times tries, or 1
+    size: text size depending on window size - text and alphabet should not overlap
     +reset: if remaining changes are removed from solution, don't forget to get them back (probably, just re-init the game - b-but we'll need to remove existing objects first)
     +hint: if there are no tries in the beginning of the game, move letters in text/alphabet around
     +countdown: also update total_score
@@ -105,13 +106,10 @@
         stage.addChild(reset_text);
         reset_text.addEventListener("click", reset);
         
-        fullscr_btn = new createjs.Bitmap("/open-iconic-master/png/fullscreen-enter-4x.png");
-        var hit = new createjs.Shape();
-        hit.graphics.beginFill("#000").drawRect(0, 0, 32, 32);
-        fullscr_btn.hitArea = hit;
-        fullscr_btn.filters = [new createjs.ColorFilter(0,0,0,1, 255,119,0,0)];
-        fullscr_btn.addEventListener("click", fullscreen);
-        stage.addChild(fullscr_btn);
+        var image = new Image();
+        image.src = "/open-iconic-master/png/fullscreen-enter-4x.png";
+        image.onload = onLoad;
+        
         // insertion rect
         insert_rect = new createjs.Shape();
         //insert_rect.graphics.beginStroke("#ff0000").drawRect(0, 0, 10, 10);
@@ -124,6 +122,20 @@
         reset();
         //resizeCanvas();
         window.addEventListener('resize', resizeCanvas, false);
+      }
+      
+      // common image handler
+      function onLoad() {
+        fullscr_btn = new createjs.Bitmap(this);
+        fullscr_btn.filters = [new createjs.ColorFilter(0,0,0,1, 255,119,0,0)];
+        fullscr_btn.cache(0, 0, fullscr_btn.getBounds().width, fullscr_btn.getBounds().height);
+        fullscr_btn.addEventListener("click", fullscreen);
+        var hit = new createjs.Shape();
+        hit.graphics.beginFill("#000").drawRect(0, 0, fullscr_btn.getBounds().width, fullscr_btn.getBounds().height);
+        fullscr_btn.hitArea = hit;
+        stage.addChild(fullscr_btn);
+        fullscr_btn.x = canvas.width - 50;
+        fullscr_btn.y = canvas.height - 50;
       }
       
       function reset(event) {
@@ -196,8 +208,10 @@
         reset_text.x = window.innerWidth / 2;
         score_text.text = "Счёт: " + total_score.toString();
         countdown_text.text = "Осталось: " + countdown.toString();
-        fullscr_btn.x = canvas.width - 50; //fullscr_btn.getBounds().width;
-        fullscr_btn.y = canvas.height - 50; //fullscr_btn.getBounds().height;
+        if (fullscr_btn) {
+          fullscr_btn.x = canvas.width - 50; //fullscr_btn.getBounds().width;
+          fullscr_btn.y = canvas.height - 50; //fullscr_btn.getBounds().height;
+        }
       }
       
       function redrawText(text, spacing, align_bottom) {
@@ -429,7 +443,7 @@
         attempts++;
         console.log(i, ch, removing, inserting, solution.length);
         for (var j = 0; j < solution.length; j++) {
-          if (solution[j][2] == i && // first check position of a rule, then if it'ss applied correctly
+          if (solution[j][2] == i && // first check position of a rule, then if it's applied correctly
               (removing && solution[j][1] === '' ||
               !removing && inserting && solution[j][0] === '' && solution[j][1] === ch ||
               !removing && !inserting && solution[j][0] !== '' && solution[j][1] === ch)) {
@@ -443,6 +457,7 @@
                 break;
               cur_text[k].x -= cur_text[i].getBounds().width;
             }*/
+            updateHints(j > 0);
             if (countdown <= 0) {
               solved.push(task);
               localStorage.setItem('solved', solved.join('\\'));
@@ -456,7 +471,6 @@
               // save the total score
               reset();
             }
-            updateHints();
             return true;
           }
         }
@@ -464,7 +478,7 @@
         return false;
       }
       
-      function updateHints() {
+      function updateHints(immediately = false) {
         //if (!!moving) // not while moving
         //  return;
         createjs.Tween.removeAllTweens();
@@ -485,7 +499,7 @@
           // move entire word after some time 
           // (WARNING: if player is dragging a letter from the hinted word, it may suddenly move; see that hints are disabled when dragging)
           for (i = start; i < stop; i++) {
-            createjs.Tween.get(cur_text[i]).wait(10000)
+            createjs.Tween.get(cur_text[i]).wait(immediately ? 0 : 15000)
             .to({x: cur_text[i].x - 20}, 200, createjs.Ease.getPowInOut(2))
             .to({x: cur_text[i].x + 20}, 400, createjs.Ease.getPowInOut(2))
             .to({x: cur_text[i].x     }, 200, createjs.Ease.getPowInOut(2));
