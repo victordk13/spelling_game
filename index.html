@@ -25,6 +25,7 @@
     +hint: if there are no tries in the beginning of the game, move letters in text/alphabet around
     +countdown: also update total_score
     +store solved levels: store strings to compare later with current tasks to skip the solved ones
+    text on a parchment
     */
     (function(){
     
@@ -36,7 +37,7 @@
       if (!isCanvasSupported())
         return;
       
-      console.log(tasks);
+      console.log('Tasks', tasks);
       var 
       solution = [],
       // Syntax: text[<wrong>|<right>]text
@@ -58,16 +59,18 @@
       fullscr_btn = null,
       is_fullscreen = false,
       cur_text = [],
+      text_rect,
       alpha_text = [],
       insert_rect = null,
       text_color = '#606060',
       alpha_color = '#4040e0',
-      font = "60px PT Serif",
-      box_shift = 18,
+      font_name = "60px Georgia, serif",//"60px PT Serif",
+      box_shift = 10,//18,
       hint = 0;
       
       stage.enableMouseOver(10);
       createjs.Touch.enable(stage);
+      //canvas.style.backgroundColor = "#ffffaa";
       
       init();
       
@@ -80,24 +83,24 @@
           solved = [];
         else
           solved = solved.split('\\');
-        console.log(solved);
+        console.log('Solved', solved);
         localStorage.setItem('solved', solved.join('\\'));
         cur_task = next_task(-1);
         if (cur_task>=0) 
           task = tasks[cur_task];
         
         // output a text with the score
-        score_text = new createjs.Text("Счёт: " + total_score.toString(), "60px PT Serif", "#ff7700");
+        score_text = new createjs.Text("Счёт: " + total_score.toString(), font_name, "#ff7700");
         score_text.x = window.innerWidth - score_text.getBounds().width - 32;
         score_text.y = 16;
         stage.addChild(score_text);
         
-        countdown_text = new createjs.Text("Осталось: " + countdown.toString(), "60px PT Serif", "#ff7700");
+        countdown_text = new createjs.Text("Осталось: " + countdown.toString(), font_name, "#ff7700");
         countdown_text.x = 32;
         countdown_text.y = 16;
         stage.addChild(countdown_text);
         
-        reset_text = new createjs.Text("🔃", "60px PT Serif", "#ff7700");
+        reset_text = new createjs.Text("🔃", font_name, "#ff7700");
         reset_text.x = window.innerWidth / 2;
         reset_text.y = 16;
         var hit = new createjs.Shape();
@@ -105,6 +108,9 @@
         reset_text.hitArea = hit;
         stage.addChild(reset_text);
         reset_text.addEventListener("click", reset);
+        
+        text_rect = new createjs.Shape();
+        stage.addChild(text_rect);
         
         var image = new Image();
         image.src = "/open-iconic-master/png/fullscreen-enter-4x.png";
@@ -180,13 +186,13 @@
           text.splice(0,text.length); 
         }
         for (var i in string) {
-          text.push(newLetter(string.charAt(i), color));          
+          text.push(newLetter(string.charAt(i), color));
         }
-        console.log(text);
+        console.log('initText', text);
       }
       
       function newLetter(ch, color) {
-        var letter = new createjs.Text(ch, "60px PT Serif", color);
+        var letter = new createjs.Text(ch, font_name, color);
         //letter.textAlign = "center";
         rect = letter.getBounds();
         //letter.name = i.toString();
@@ -202,7 +208,13 @@
       }
       
       function redraw() {
-        redrawText(cur_text, 10, false);
+        var rect = redrawText(cur_text, 10, false);
+        if (rect) {
+          rect = rect.pad(50, 50, 50, 50);
+          text_rect.graphics.beginFill("#fff4bb").drawRect(rect.x, rect.y, rect.width, rect.height);
+        }
+        else { // TODO: remove rect
+        }
         redrawText(alpha_text, 20, true);
         score_text.x = window.innerWidth - score_text.getBounds().width - 32;
         reset_text.x = window.innerWidth / 2;
@@ -216,7 +228,7 @@
       
       function redrawText(text, spacing, align_bottom) {
         var break_at = 0;
-        var x = 50, y = 100;
+        var x = 100, y = 150;
         //if (align_bottom)
           //y = 500;
         for (var i = 0; i < text.length; i++) {
@@ -224,7 +236,7 @@
           letter.x = x;
           letter.y = y;
           x += letter.getBounds().width + spacing;
-          if (letter.x + letter.getBounds().width + 50 + spacing > window.innerWidth) {
+          if (letter.x + letter.getBounds().width + 100 + spacing > window.innerWidth) {
             x = text[0].x;
             y += letter.getBounds().height * (align_bottom ? 1 : 1.5);
             if (break_at == 0)
@@ -245,13 +257,23 @@
         }
         if (align_bottom) {
           var last = text[text.length - 1];
-          console.log(text, last);
+          //console.log(text, last);
           var shift_y = canvas.height - last.y - last.getBounds().height;
           text.forEach(function (letter) {
             letter.y += shift_y - 50;
           });
         }
-        //stage.update();        
+        var rect;
+        text.forEach(function (letter) {
+          if (rect)
+            rect = rect.extend(letter.x, letter.y, letter.getBounds().width, letter.getBounds().height);
+          else
+            rect = new createjs.Rectangle(letter.x, letter.y, letter.getBounds().width, letter.getBounds().height);
+          console.log('...', rect);
+        });
+        console.log('bkg rect', rect);
+        //stage.update();
+        return rect;
       }
 
       function parseTask(str) {
@@ -262,7 +284,7 @@
         sol.stop = '';
         var i = 0;
         while (found != null) {
-          console.log(found);
+          //console.log(found);
           sol[i++] = [found[1], found[2], found.index + sol.start.length];
           sol.start += str.substr(0, found.index) + found[1];
           sol.stop += str.substr(0, found.index) + found[2];
@@ -272,7 +294,7 @@
         };
         sol.start += str;
         sol.stop += str;
-        console.log(sol);
+        //console.log(sol);
         return sol;
       }
       
@@ -500,6 +522,10 @@
           // (WARNING: if player is dragging a letter from the hinted word, it may suddenly move; see that hints are disabled when dragging)
           for (i = start; i < stop; i++) {
             createjs.Tween.get(cur_text[i]).wait(immediately ? 0 : 15000)
+            .to({x: cur_text[i].x - 20}, 200, createjs.Ease.getPowInOut(2))
+            .to({x: cur_text[i].x + 20}, 400, createjs.Ease.getPowInOut(2))
+            .to({x: cur_text[i].x     }, 200, createjs.Ease.getPowInOut(2))
+            .wait(1000)
             .to({x: cur_text[i].x - 20}, 200, createjs.Ease.getPowInOut(2))
             .to({x: cur_text[i].x + 20}, 400, createjs.Ease.getPowInOut(2))
             .to({x: cur_text[i].x     }, 200, createjs.Ease.getPowInOut(2));
