@@ -301,6 +301,7 @@
       var moving = null; // object to move
       var moving_x, moving_y, moving_dx, moving_dy;
       var removing = true; // is removing letter from text
+      var closed_gap = false;
       
       function setupMoving(event, obj, color) {
           moving = obj;
@@ -374,13 +375,22 @@
             insert_rect.graphics.c();
             //createjs.Tween.get(insert_rect).to({alpha: 0}, 100);
           }
+        } else {
+          if(farEnough(event) ? !closed_gap : closed_gap) { // shift the rest of the string to close the gap
+            for (var i = cur_text.indexOf(moving) + 1; i < cur_text.length && cur_text[i].y == moving_y; i++) {
+              createjs.Tween.get(cur_text[i])
+                .to({x: cur_text[i].x + (closed_gap ? +1 : -1) * moving.getBounds().width}, 100);
+            }
+            closed_gap = !closed_gap;
+          }
         }
         //stage.update();
       }
       
       function farEnough(event) {
-        return Math.abs(event.stageX - moving_x) > moving.getBounds().width * 1.5 ||
-              Math.abs(event.stageY - moving_y) > moving.getBounds().height * 1.5;
+        var dist = moving.getBounds().width + moving.getBounds().height;
+        return Math.abs(moving.x - moving_x) > dist ||
+              Math.abs(moving.y - moving_y) > dist;
       }
 
       function pressUp(event) {
