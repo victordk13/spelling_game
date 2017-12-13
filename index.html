@@ -64,9 +64,12 @@
       insert_rect = null,
       text_color = '#606060',
       alpha_color = '#4040e0',
-      font_name = "60px Georgia, serif",//"60px PT Serif",
+      font_size = 60,
+      font_name = font_size.toString() + "px Georgia, serif",//"60px PT Serif",
       box_shift = 10,//18,
-      hint = 0;
+      hint = 0,
+      debug_text,
+      placing = {};
       
       stage.enableMouseOver(10);
       createjs.Touch.enable(stage);
@@ -86,8 +89,11 @@
         console.log('Solved', solved);
         localStorage.setItem('solved', solved.join('\\'));
         cur_task = next_task(-1);
-        if (cur_task>=0) 
+        if (cur_task >= 0) 
           task = tasks[cur_task];
+        
+        debug_text = new createjs.Text(window.innerWidth.toString() + "x" + window.innerHeight.toString());
+        //stage.addChild(debug_text);
         
         // output a text with the score
         score_text = new createjs.Text("Счёт: " + total_score.toString(), font_name, "#ff7700");
@@ -182,7 +188,7 @@
       function initText(text, string, color) {
         if (text.length) {
           stage.removeChild(...text);
-          // remove all elements (text = []; would assign new array insead of cleaning the old one)
+          // remove all elements (text = []; would assign new array instead of cleaning the old one)
           text.splice(0,text.length); 
         }
         for (var i in string) {
@@ -193,32 +199,58 @@
       
       function newLetter(ch, color) {
         var letter = new createjs.Text(ch, font_name, color);
-        //letter.textAlign = "center";
-        letter.cacheRect = letter.getBounds();
-        //console.log('init letter rect', letter, letter.cacheRect);
-        //letter.name = i.toString();
-        var hit = new createjs.Shape();
-        hit.graphics.beginFill("#000")
-          .drawRect(-5, 5 + box_shift, letter.cacheRect.width + 10, letter.cacheRect.height + 10);
-        letter.hitArea = hit;
+        //letter.cacheRect = letter.getBounds();
+        //var hit = new createjs.Shape();
+        //hit.graphics.beginFill("#000")
+        //  .drawRect(-5, 5 + box_shift, letter.cacheRect.width + 10, letter.cacheRect.height + 10);
+        //letter.hitArea = hit;
+        //letter.cache(letter.cacheRect.x, letter.cacheRect.y + box_shift, 
+        //  letter.cacheRect.width, letter.cacheRect.height);
+        updateLetter(letter);
         stage.addChild(letter);
         letter.addEventListener("mousedown", mouseDown);
         letter.addEventListener("pressmove", pressMove);
         letter.addEventListener("pressup", pressUp);
-        letter.cache(letter.cacheRect.x, letter.cacheRect.y + box_shift, 
-          letter.cacheRect.width, letter.cacheRect.height);
         return letter;
       }
       
+      function updateLetter(letter) {
+          letter.uncache(); // the hack to allow dynamic font changes
+          letter.font = font_name;
+          letter.cacheRect = letter.getBounds();
+          var hit = new createjs.Shape();
+          hit.graphics.beginFill("#000")
+            .drawRect(-placing.spacing, placing.spacing + box_shift, 
+              letter.cacheRect.width + placing.spacing*2, letter.cacheRect.height + placing.spacing*2);
+          letter.hitArea = hit;
+          letter.cache(letter.cacheRect.x, letter.cacheRect.y + box_shift, 
+            letter.cacheRect.width, letter.cacheRect.height);
+      }
+      
+      function updatePlacing(font_size) {
+        placing.bkg_pad = font_size / 2;
+        placing.text_x = font_size;
+        placing.text_y = font_size * 2;
+        placing.spacing = font_size / 10;
+      }
+      
       function redraw() {
-        var rect = redrawText(cur_text, 10, false);
+        var sizes = [8, 10, 12, 16, 24, 32, 48, 60], idx = sizes.length - 1;
+        do {
+          font_size = sizes[idx];
+          updatePlacing(font_size);
+          font_name = font_size.toString() + "px Georgia, serif";
+          console.log(font_name, placing);
+          var rect = redrawText(cur_text, placing.spacing * 2, false);
+          var rect2 = redrawText(alpha_text, placing.spacing * 3, true);
+          idx--;
+        } while(rect.intersects(rect2) && idx >= 0);
+        text_rect.graphics.c();
         if (rect) {
-          rect = rect.pad(50, 50, 50, 50);
+          rect = rect.pad(placing.bkg_pad, placing.bkg_pad, placing.bkg_pad, placing.bkg_pad);
           text_rect.graphics.beginFill("#fff4bb").drawRect(rect.x, rect.y, rect.width, rect.height);
         }
-        else { // TODO: remove rect
-        }
-        redrawText(alpha_text, 20, true);
+        countdown_text.font = reset_text.font = score_text.font = font_name;
         score_text.x = window.innerWidth - score_text.getBounds().width - 32;
         reset_text.x = window.innerWidth / 2;
         score_text.text = "Счёт: " + total_score.toString();
@@ -231,16 +263,17 @@
       
       function redrawText(text, spacing, align_bottom) {
         var break_at = 0;
-        var x = 100, y = 150;
+        var x = placing.text_x, y = placing.text_y;
         //if (align_bottom)
           //y = 500;
         for (var i = 0; i < text.length; i++) {
           var letter = text[i];
+          updateLetter(letter);
           //console.log('redraw letter rect', letter, letter.cacheRect);
           letter.x = x;
           letter.y = y;
           x += letter.cacheRect.width + spacing;
-          if (letter.x + letter.cacheRect.width + 100 + spacing > window.innerWidth) {
+          if (letter.x + letter.cacheRect.width + placing.text_x + spacing > window.innerWidth) {
             x = text[0].x;
             y += letter.cacheRect.height * (align_bottom ? 1 : 1.5);
             if (break_at == 0)
@@ -342,10 +375,10 @@
       function textPosition(event) {
           for (var i = 0; i < cur_text.length; i++) {
             var rect = new createjs.Rectangle(
-              cur_text[i].x - 5,
-              cur_text[i].y + box_shift - 5,
-              cur_text[i].cacheRect.width + 10,
-              cur_text[i].cacheRect.height + 10);
+              cur_text[i].x - placing.spacing,
+              cur_text[i].y + box_shift - placing.spacing,
+              cur_text[i].cacheRect.width + placing.spacing * 2,
+              cur_text[i].cacheRect.height + placing.spacing * 2);
             if (rect.contains(event.stageX, event.stageY)) {
               var inserting = false;
               if (event.stageX - rect.x < rect.width / 4)
@@ -372,10 +405,11 @@
               timeline_gap.advance(100);
             }
             timeline_gap = new createjs.Timeline({onComplete: function (evt) {timeline_gap = null;}});
-            console.log("created timeline", timeline_gap);
+            //console.log("created timeline", timeline_gap);
             for (var i = cur_text.indexOf(moving) + 1; i < cur_text.length && cur_text[i].y == moving_y; i++) {
               timeline_gap.addTween(createjs.Tween.get(cur_text[i])
-                .to({x: cur_text[i].x + (closed_gap ? +1 : -1) * moving.cacheRect.width}, 100));
+                .to({x: cur_text[i].x + (closed_gap ? +1 : -1) 
+                  * (moving.cacheRect.width + placing.spacing)}, 100));
             }
             closed_gap = !closed_gap;
             //console.log(closed_gap ? 'closing' : 'opening');
@@ -392,7 +426,8 @@
           var pos = textPosition(event);
           if (pos.pos >= 0) {
             if (pos.ins) {
-              insert_rect.graphics.c().s("#ff0000").dr(pos.rect.x - 5, pos.rect.y, 10, pos.rect.height);
+              insert_rect.graphics.c().s("#ff0000").dr(pos.rect.x - placing.spacing, pos.rect.y, 
+              placing.spacing * 2, pos.rect.height);
             } else {
               insert_rect.graphics.c().s("#ff0000").dr(pos.rect.x, pos.rect.y, pos.rect.width, pos.rect.height);
             }
@@ -531,10 +566,12 @@
         return false;
       }
       
+      var hint_timeout;
       function updateHints(immediately = false) {
         //if (!!moving) // not while moving
         //  return;
         createjs.Tween.removeAllTweens();
+        clearTimeout(hint_timeout);
         if (solution.length) {
           // we show hint for the first rule in a solution. 
           // it works if 1. there were no actions, 2. user skipped some changes 3. user solved the task consecutively and is stuck
@@ -551,22 +588,25 @@
             stop++;
           // move entire word after some time 
           // (WARNING: if player is dragging a letter from the hinted word, it may suddenly move; see that hints are disabled when dragging)
-          for (i = start; i < stop; i++) {
-            createjs.Tween.get(cur_text[i]).wait(immediately ? 0 : 15000)
-            .to({x: cur_text[i].x - 20}, 200, createjs.Ease.getPowInOut(2))
-            .to({x: cur_text[i].x + 20}, 400, createjs.Ease.getPowInOut(2))
-            .to({x: cur_text[i].x     }, 200, createjs.Ease.getPowInOut(2))
-            .wait(1000)
-            .to({x: cur_text[i].x - 20}, 200, createjs.Ease.getPowInOut(2))
-            .to({x: cur_text[i].x + 20}, 400, createjs.Ease.getPowInOut(2))
-            .to({x: cur_text[i].x     }, 200, createjs.Ease.getPowInOut(2));
-          }
+          hint_timeout = setTimeout(function () {
+            for (i = start; i < stop; i++) {
+              createjs.Tween.get(cur_text[i])
+              .to({x: cur_text[i].x - 20}, 200, createjs.Ease.getPowInOut(2))
+              .to({x: cur_text[i].x + 20}, 400, createjs.Ease.getPowInOut(2))
+              .to({x: cur_text[i].x     }, 200, createjs.Ease.getPowInOut(2))
+              .wait(500)
+              .to({x: cur_text[i].x - 20}, 200, createjs.Ease.getPowInOut(2))
+              .to({x: cur_text[i].x + 20}, 400, createjs.Ease.getPowInOut(2))
+              .to({x: cur_text[i].x     }, 200, createjs.Ease.getPowInOut(2));
+            };
+          }, immediately ? 0 : 15000);
         }
       }
       
       function resizeCanvas() {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
+        debug_text.text = window.innerWidth.toString() + "x" + window.innerHeight.toString();
         redraw();
       }
 
