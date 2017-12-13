@@ -2,7 +2,7 @@
   <head>
     <meta charset="UTF-8">
     <link href="https://fonts.googleapis.com/css?family=PT+Serif&amp;subset=cyrillic" rel="stylesheet">
-    <script src="https://code.createjs.com/createjs-2015.11.26.min.js"></script>
+    <script src="createjs.min.js"></script>
     <!--script src="https://code.createjs.com/tweenjs-0.6.2.min.js"></script-->
     <style>
     html, body {
@@ -118,11 +118,10 @@
         
         // insertion rect
         insert_rect = new createjs.Shape();
-        //insert_rect.graphics.beginStroke("#ff0000").drawRect(0, 0, 10, 10);
-        //insert_rect.alpha = 0.;
+        //insert_rect.graphics.s("#ff0000"); // can we preset stroke color?
         stage.addChild(insert_rect);
 
-        createjs.Ticker.setFPS(30);
+        createjs.Ticker.framerate = 30;
         createjs.Ticker.addEventListener("tick", stage);
         
         reset();
@@ -134,10 +133,11 @@
       function onLoad() {
         fullscr_btn = new createjs.Bitmap(this);
         fullscr_btn.filters = [new createjs.ColorFilter(0,0,0,1, 255,119,0,0)];
+        fullscr_btn.cacheRect = fullscr_btn.getBounds();
         fullscr_btn.cache(0, 0, fullscr_btn.getBounds().width, fullscr_btn.getBounds().height);
         fullscr_btn.addEventListener("click", fullscreen);
         var hit = new createjs.Shape();
-        hit.graphics.beginFill("#000").drawRect(0, 0, fullscr_btn.getBounds().width, fullscr_btn.getBounds().height);
+        hit.graphics.beginFill("#000").drawRect(0, 0, fullscr_btn.cacheRect.width, fullscr_btn.cacheRect.height);
         fullscr_btn.hitArea = hit;
         stage.addChild(fullscr_btn);
         fullscr_btn.x = canvas.width - 50;
@@ -194,16 +194,19 @@
       function newLetter(ch, color) {
         var letter = new createjs.Text(ch, font_name, color);
         //letter.textAlign = "center";
-        rect = letter.getBounds();
+        letter.cacheRect = letter.getBounds();
+        //console.log('init letter rect', letter, letter.cacheRect);
         //letter.name = i.toString();
         var hit = new createjs.Shape();
-        hit.graphics.beginFill("#000").drawRect(-5, 5 + box_shift, letter.getBounds().width + 10, letter.getBounds().height + 10);
+        hit.graphics.beginFill("#000")
+          .drawRect(-5, 5 + box_shift, letter.cacheRect.width + 10, letter.cacheRect.height + 10);
         letter.hitArea = hit;
         stage.addChild(letter);
         letter.addEventListener("mousedown", mouseDown);
         letter.addEventListener("pressmove", pressMove);
         letter.addEventListener("pressup", pressUp);
-        letter.cache(rect.x, rect.y + box_shift, rect.width, rect.height);
+        letter.cache(letter.cacheRect.x, letter.cacheRect.y + box_shift, 
+          letter.cacheRect.width, letter.cacheRect.height);
         return letter;
       }
       
@@ -233,19 +236,20 @@
           //y = 500;
         for (var i = 0; i < text.length; i++) {
           var letter = text[i];
+          //console.log('redraw letter rect', letter, letter.cacheRect);
           letter.x = x;
           letter.y = y;
-          x += letter.getBounds().width + spacing;
-          if (letter.x + letter.getBounds().width + 100 + spacing > window.innerWidth) {
+          x += letter.cacheRect.width + spacing;
+          if (letter.x + letter.cacheRect.width + 100 + spacing > window.innerWidth) {
             x = text[0].x;
-            y += letter.getBounds().height * (align_bottom ? 1 : 1.5);
+            y += letter.cacheRect.height * (align_bottom ? 1 : 1.5);
             if (break_at == 0)
               break_at = i;
             console.log("Reflowing: ", break_at, i);
             for (j = break_at; j <= i; j++) {
               //console.log("Reflowing: ", j, i, break_at, text[j]);
               text[j].x = x;
-              x += text[j].getBounds().width + spacing;
+              x += text[j].cacheRect.width + spacing;
               text[j].y = y;
             }
             break_at = 0;
@@ -258,7 +262,7 @@
         if (align_bottom) {
           var last = text[text.length - 1];
           //console.log(text, last);
-          var shift_y = canvas.height - last.y - last.getBounds().height;
+          var shift_y = canvas.height - last.y - last.cacheRect.height;
           text.forEach(function (letter) {
             letter.y += shift_y - 50;
           });
@@ -266,10 +270,10 @@
         var rect;
         text.forEach(function (letter) {
           if (rect)
-            rect = rect.extend(letter.x, letter.y, letter.getBounds().width, letter.getBounds().height);
+            rect = rect.extend(letter.x, letter.y, letter.cacheRect.width, letter.cacheRect.height);
           else
-            rect = new createjs.Rectangle(letter.x, letter.y, letter.getBounds().width, letter.getBounds().height);
-          console.log('...', rect);
+            rect = new createjs.Rectangle(letter.x, letter.y, letter.cacheRect.width, letter.cacheRect.height);
+          //console.log('...', rect);
         });
         console.log('bkg rect', rect);
         //stage.update();
@@ -302,6 +306,7 @@
       var moving_x, moving_y, moving_dx, moving_dy;
       var removing = true; // is removing letter from text
       var closed_gap = false;
+      var timeline_gap = null;
       
       function setupMoving(event, obj, color) {
           moving = obj;
@@ -316,7 +321,8 @@
       
       function mouseDown(event) {
         var i = cur_text.indexOf(event.target);
-        if (i >= 0) {
+        // but inactivate target until active tweens are finished
+        if (i >= 0 && !createjs.Tween.hasActiveTweens(cur_text[i])) { 
           setupMoving(event, cur_text[i], "#e00000");
           removing = true;
           createjs.Tween.removeAllTweens();
@@ -338,8 +344,8 @@
             var rect = new createjs.Rectangle(
               cur_text[i].x - 5,
               cur_text[i].y + box_shift - 5,
-              cur_text[i].getBounds().width + 10,
-              cur_text[i].getBounds().height + 10);
+              cur_text[i].cacheRect.width + 10,
+              cur_text[i].cacheRect.height + 10);
             if (rect.contains(event.stageX, event.stageY)) {
               var inserting = false;
               if (event.stageX - rect.x < rect.width / 4)
@@ -357,11 +363,31 @@
           return {pos: -1};
       }
       
+      // close (or open) gap
+      function closeGap(close) {
+          //console.log('Close gap');
+          if(close ? !closed_gap : closed_gap) { // shift the rest of the string to close the gap
+            if (timeline_gap) {
+              //console.log("advancing timeline", timeline_gap);
+              timeline_gap.advance(100);
+            }
+            timeline_gap = new createjs.Timeline({onComplete: function (evt) {timeline_gap = null;}});
+            console.log("created timeline", timeline_gap);
+            for (var i = cur_text.indexOf(moving) + 1; i < cur_text.length && cur_text[i].y == moving_y; i++) {
+              timeline_gap.addTween(createjs.Tween.get(cur_text[i])
+                .to({x: cur_text[i].x + (closed_gap ? +1 : -1) * moving.cacheRect.width}, 100));
+            }
+            closed_gap = !closed_gap;
+            //console.log(closed_gap ? 'closing' : 'opening');
+          }
+      
+      }
+      
       function pressMove(event) {
-        if (!!moving) {
-          moving.x = event.stageX - moving_dx;
-          moving.y = event.stageY - moving_dy;
-        }
+        if (!moving)
+          return;
+        moving.x = event.stageX - moving_dx;
+        moving.y = event.stageY - moving_dy;
         if (!removing) {
           var pos = textPosition(event);
           if (pos.pos >= 0) {
@@ -376,19 +402,13 @@
             //createjs.Tween.get(insert_rect).to({alpha: 0}, 100);
           }
         } else {
-          if(farEnough(event) ? !closed_gap : closed_gap) { // shift the rest of the string to close the gap
-            for (var i = cur_text.indexOf(moving) + 1; i < cur_text.length && cur_text[i].y == moving_y; i++) {
-              createjs.Tween.get(cur_text[i])
-                .to({x: cur_text[i].x + (closed_gap ? +1 : -1) * moving.getBounds().width}, 100);
-            }
-            closed_gap = !closed_gap;
-          }
+          closeGap(farEnough(event));
         }
         //stage.update();
       }
       
       function farEnough(event) {
-        var dist = moving.getBounds().width + moving.getBounds().height;
+        var dist = moving.cacheRect.width + moving.cacheRect.height;
         return Math.abs(moving.x - moving_x) > dist ||
               Math.abs(moving.y - moving_y) > dist;
       }
@@ -429,6 +449,7 @@
             createjs.Tween.get(moving)
             .to({x: moving_x, y: moving_y, color: text_color}, 200, createjs.Ease.getPowInOut(2))
             moving.color = text_color;
+            closeGap(false);
           }
           moving.updateCache();
           moving = null;
